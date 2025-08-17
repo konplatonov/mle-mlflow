@@ -13,7 +13,7 @@ TABLE_NAME = "users_churn"
 TRACKING_SERVER_HOST = "127.0.0.1"
 TRACKING_SERVER_PORT = 5000
 
-EXPERIMENT_NAME = "churn_eda_experiment"      # обязательно УКАЖИ!
+EXPERIMENT_NAME = "churn_eda_experiment"
 RUN_NAME = "eda_run"
 ASSETS_DIR = "assets"
 
@@ -160,7 +160,7 @@ axs[0].set_title(f"{charges[0]} distribution")
 sns.histplot(data=df, x=charges[1], hue=target, kde=True, ax=axs[1])
 axs[1].set_title(f"{charges[1]} distribution")
 
-plt.savefig(os.path.join(ASSETS_DIR, 'charges_by_target_dist'))
+plt.savefig(os.path.join(ASSETS_DIR, 'chargest_by_target_dist'))
 plt.close()
 
 # --- Логирование в MLflow ---
