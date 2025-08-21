@@ -36,7 +36,8 @@ TABLE_NAME = 'users_churn'
 TRACKING_SERVER_HOST = "127.0.0.1"
 TRACKING_SERVER_PORT = 5000
 
-EXPERIMENT_NAME = 'feature_selection'
+EXPERIMENT_NAME = 'feature_selection_intersection'
+# EXPERIMENT_NAME = 'feature_selection_union'
 RUN_NAME = "feature_selection"
 REGISTRY_MODEL_NAME = 'model with sfs sbs'
 FS_ASSETS = "fs_assets"
@@ -52,7 +53,7 @@ postgres_credentials = {
 connection.update(postgres_credentials)
 with psycopg.connect(**connection) as conn:
     with conn.cursor() as cur:
-        cur.execute(f"SELECT * FROM {TABLE_NAME} limit 2000")
+        cur.execute(f"SELECT * FROM {TABLE_NAME} limit 1000")
         data = cur.fetchall()
         columns = [col[0] for col in cur.description]
 df = pd.DataFrame(data, columns=columns)
@@ -135,7 +136,7 @@ plt.title('Sequential Forward Selection (w. StdDev)')
 plt.grid()
 plt.show()
 
-plt.savefig("FS_ASSETS/sfs.png")
+plt.savefig(f"{FS_ASSETS}/sfs.png")
 
 import matplotlib.pyplot as plt
 from mlxtend.plotting import plot_sequential_feature_selection as plot_sfs
@@ -146,10 +147,28 @@ plt.title('Sequential Backward Selection (w. StdDev)')
 plt.grid()
 plt.show()
 
-plt.savefig("FS_ASSETS/sbs.png") 
+plt.savefig(f"{FS_ASSETS}/sbs.png") 
 
 interc_features = list(set(top_sbs) & set(top_sfs))
 union_features = list(set(top_sbs) | set(top_sfs))
+
+rf = RandomForestClassifier()
+
+# interc_features
+rf.fit(X_train[interc_features], y_train)
+# union_features
+# rf.fit(X_train[union_features], y_train)
+
+# Предсказания
+# interc_features
+preds = rf.predict(X_test[interc_features])
+# union_features
+# preds = rf.predict(X_test[union_features])
+
+metrics = {
+    "AUC": roc_auc_score(y_test, preds),
+    "F1": f1_score(y_test, preds)
+}
 
 os.environ["MLFLOW_S3_ENDPOINT_URL"] = os.getenv("MLFLOW_S3_ENDPOINT_URL")
 os.environ["AWS_ACCESS_KEY_ID"] = os.getenv("AWS_ACCESS_KEY_ID")
@@ -168,3 +187,9 @@ with mlflow.start_run(run_name=f"{RUN_NAME}_intersection_and_union", experiment_
     run_id = run.info.run_id
    
     mlflow.log_artifacts(FS_ASSETS)
+
+    mlflow.sklearn.log_model(
+        sk_model=rf,
+        artifact_path="model_pipeline",
+        registered_model_name=REGISTRY_MODEL_NAME
+    )
