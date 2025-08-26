@@ -86,6 +86,7 @@ iterations = 300
 verbose = False
 
 params = {
+<<<<<<< HEAD
     'n_estimators': [100, 200, 300],
     'max_depth': [5, 10, 15],
     'min_samples_split': [2, 5, 10],
@@ -97,6 +98,19 @@ params = {
 model = CatBoostClassifier(random_seed=random_seed,
                            loss_function=loss_function,iterations=iterations,
                            verbose=verbose, task_type=task_type)
+=======
+    'iterations': [100, 200, 300],
+    'depth': [5, 10]
+    # 'learning_rate': [0.01, 0.05]
+}
+
+model = CatBoostClassifier(
+    random_seed=random_seed,
+    loss_function=loss_function,
+    verbose=verbose,
+    task_type=task_type
+)
+>>>>>>> 9b7ca570218e6e18129b1709fdd976d9bc7201d9
 
 cv = GridSearchCV(
     estimator=model,
@@ -109,6 +123,7 @@ cv = GridSearchCV(
 
 clf = cv.fit(X_train, y_train)
 
+<<<<<<< HEAD
 os.environ["MLFLOW_S3_ENDPOINT_URL"] = "https://storage.yandexcloud.net"
 os.environ["AWS_ACCESS_KEY_ID"] = os.getenv("S3_ACCESS_KEY")
 os.environ["AWS_SECRET_ACCESS_KEY"] = os.getenv("S3_SECRET_KEY")
@@ -122,12 +137,29 @@ best_params = clf.best_params_
 model_best = CatBoostClassifier(**best_params, random_seed=random_seed,verbose=verbose,
                                 loss_function=loss_function,task_type=task_type,
                                 iterations=iterations)
+=======
+best_params = clf.best_params_
+model_best = CatBoostClassifier(**best_params, random_seed=random_seed,verbose=verbose,
+                                loss_function=loss_function,task_type=task_type)
+>>>>>>> 9b7ca570218e6e18129b1709fdd976d9bc7201d9
 
 model_best.fit(X_train, y_train)
 
 prediction = model_best.predict(X_test)
 probas = model_best.predict_proba(X_test)[:, 1]
 
+<<<<<<< HEAD
+=======
+os.environ["MLFLOW_S3_ENDPOINT_URL"] = "https://storage.yandexcloud.net"
+os.environ["AWS_ACCESS_KEY_ID"] = os.getenv("AWS_ACCESS_KEY_ID")
+os.environ["AWS_SECRET_ACCESS_KEY"] = os.getenv("AWS_SECRET_ACCESS_KEY")
+
+mlflow.set_tracking_uri(f"http://{TRACKING_SERVER_HOST}:{TRACKING_SERVER_PORT}")
+mlflow.set_registry_uri(f"http://{TRACKING_SERVER_HOST}:{TRACKING_SERVER_PORT}")
+
+cv_results = pd.DataFrame(clf.cv_results_)
+
+>>>>>>> 9b7ca570218e6e18129b1709fdd976d9bc7201d9
 # расчёт метрик качества
 metrics = {}
 
@@ -156,21 +188,42 @@ metrics['mean_test_score'] = cv_results['mean_test_score'].mean()
 metrics["best_score"] = clf.best_score_  # лучший результат кросс-валидации
 
 # настройки для логирования в MLFlow
+<<<<<<< HEAD
 pip_requirements = '../requirements.txt'
 signature = mlflow.models.infer_signature(X_test, prediction)
 input_example = X_test[:10]
 
 experiment_id = mlflow.get_experiment_by_name(EXPERIMENT_NAME).experiment_id
+=======
+pip_requirements = 'requirements.txt'
+signature = mlflow.models.infer_signature(X_test, prediction)
+input_example = X_test[:10]
+
+experiment = mlflow.get_experiment_by_name(EXPERIMENT_NAME)
+if experiment is None:
+    experiment_id = mlflow.create_experiment(EXPERIMENT_NAME)
+else:
+    experiment_id = experiment.experiment_id
+>>>>>>> 9b7ca570218e6e18129b1709fdd976d9bc7201d9
 
 with mlflow.start_run(run_name=RUN_NAME, experiment_id=experiment_id) as run:
     run_id = run.info.run_id
     mlflow.log_params(best_params)
     cv_info = mlflow.sklearn.log_model(cv, artifact_path='cv')
+<<<<<<< HEAD
     model_info = mlflow.catboost.log_model(cv, artifact_path='cv',
     signature=signature,cb_model=model,artifact_path='models',
+=======
+    model_info = mlflow.catboost.log_model(model_best, artifact_path='cv',
+    signature=signature,
+>>>>>>> 9b7ca570218e6e18129b1709fdd976d9bc7201d9
     input_example=input_example,
     registered_model_name=REGISTRY_MODEL_NAME,
     pip_requirements=pip_requirements)
     mlflow.log_metrics(metrics)
+<<<<<<< HEAD
     mlflow.log_artifact(pip_requirements)
     mlflow.log_model(model_best, "model", signature=signature, input_example=input_example)
+=======
+    mlflow.log_artifact(pip_requirements)
+>>>>>>> 9b7ca570218e6e18129b1709fdd976d9bc7201d9

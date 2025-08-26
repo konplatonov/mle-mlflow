@@ -38,8 +38,13 @@ TABLE_NAME = 'users_churn'
 TRACKING_SERVER_HOST = "127.0.0.1"
 TRACKING_SERVER_PORT = 5000
 
+<<<<<<< HEAD
 EXPERIMENT_NAME = 'hyper_grid_search'
 RUN_NAME = "model_grid_search"
+=======
+EXPERIMENT_NAME = 'hyper_random_search'
+RUN_NAME = "model_random_search"
+>>>>>>> 9b7ca570218e6e18129b1709fdd976d9bc7201d9
 REGISTRY_MODEL_NAME = 'model with grid search'
 H_ASSETS = "h_assets"
 
@@ -94,6 +99,7 @@ iterations=iterations
 
 param_distributions = {
     'learning_rate': [0.01, 0.03, 0.1],
+<<<<<<< HEAD
     'depth': [4, 6, 8, 10],
     'l2_leaf_reg': [1, 3, 5, 7],
     'border_count': [32, 64, 128],
@@ -111,6 +117,11 @@ task_type=task_type,
 iterations=iterations
 )
 
+=======
+    'depth': [4, 6]
+}
+
+>>>>>>> 9b7ca570218e6e18129b1709fdd976d9bc7201d9
 cv = RandomizedSearchCV(
     estimator=model,
     param_distributions=param_distributions,
@@ -122,6 +133,7 @@ cv = RandomizedSearchCV(
 )
 clf = cv.fit(X_train, y_train)
 
+<<<<<<< HEAD
 os.environ["MLFLOW_S3_ENDPOINT_URL"] = "https://storage.yandexcloud.net"
 os.environ["AWS_ACCESS_KEY_ID"] = os.getenv("S3_ACCESS_KEY")
 os.environ["AWS_SECRET_ACCESS_KEY"] = os.getenv("S3_SECRET_KEY")
@@ -131,6 +143,8 @@ mlflow.set_registry_uri(f"http://{TRACKING_SERVER_HOST}:{TRACKING_SERVER_PORT}")
 
 cv_results = pd.DataFrame(clf.cv_results_)
 
+=======
+>>>>>>> 9b7ca570218e6e18129b1709fdd976d9bc7201d9
 best_params = clf.best_params_
 model_best = CatBoostClassifier(**best_params, random_seed=random_seed, verbose=verbose,
                                loss_function=loss_function, task_type=task_type,
@@ -141,6 +155,18 @@ model_best.fit(X_train, y_train)
 prediction = model_best.predict(X_test)
 probas = model_best.predict_proba(X_test)[:, 1]
 
+<<<<<<< HEAD
+=======
+os.environ["MLFLOW_S3_ENDPOINT_URL"] = "https://storage.yandexcloud.net"
+os.environ["AWS_ACCESS_KEY_ID"] = os.getenv("AWS_ACCESS_KEY_ID")
+os.environ["AWS_SECRET_ACCESS_KEY"] = os.getenv("AWS_SECRET_ACCESS_KEY")
+
+mlflow.set_tracking_uri(f"http://{TRACKING_SERVER_HOST}:{TRACKING_SERVER_PORT}")
+mlflow.set_registry_uri(f"http://{TRACKING_SERVER_HOST}:{TRACKING_SERVER_PORT}")
+
+cv_results = pd.DataFrame(clf.cv_results_)
+
+>>>>>>> 9b7ca570218e6e18129b1709fdd976d9bc7201d9
 # расчёт метрик качества
 metrics = {}
 
@@ -166,6 +192,7 @@ metrics['std_test_score'] = cv_results['std_test_score'].mean()
 metrics['mean_test_score'] = cv_results['mean_test_score'].mean()
 metrics["best_score"] = clf.best_score_
 
+<<<<<<< HEAD
 pip_requirements = '../requirements.txt'
 signature = mlflow.models.infer_signature(X_test, prediction)
 input_example = X_test[:10]
@@ -193,3 +220,34 @@ with mlflow.start_run(run_name=RUN_NAME, experiment_id=experiment_id) as run:
     )
     mlflow.log_metrics(metrics)
     mlflow.log_artifact(pip_requirements)
+=======
+# дополнительные метрики из результатов кросс-валидации
+metrics['mean_fit_time'] = cv_results['mean_fit_time'].mean()
+metrics['std_fit_time'] = cv_results['std_fit_time'].mean()
+metrics['std_test_score'] = cv_results['std_test_score'].mean()
+metrics['mean_test_score'] = cv_results['mean_test_score'].mean()
+metrics["best_score"] = clf.best_score_  # лучший результат кросс-валидации
+
+# настройки для логирования в MLFlow
+pip_requirements = 'requirements.txt'
+signature = mlflow.models.infer_signature(X_test, prediction)
+input_example = X_test[:10]
+
+experiment = mlflow.get_experiment_by_name(EXPERIMENT_NAME)
+if experiment is None:
+    experiment_id = mlflow.create_experiment(EXPERIMENT_NAME)
+else:
+    experiment_id = experiment.experiment_id
+
+with mlflow.start_run(run_name=RUN_NAME, experiment_id=experiment_id) as run:
+    run_id = run.info.run_id
+    mlflow.log_params(best_params)
+    cv_info = mlflow.sklearn.log_model(cv, artifact_path='cv')
+    model_info = mlflow.catboost.log_model(model_best, artifact_path='cv',
+    signature=signature,
+    input_example=input_example,
+    registered_model_name=REGISTRY_MODEL_NAME,
+    pip_requirements=pip_requirements)
+    mlflow.log_metrics(metrics)
+    mlflow.log_artifact(pip_requirements)
+>>>>>>> 9b7ca570218e6e18129b1709fdd976d9bc7201d9
