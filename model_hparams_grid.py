@@ -94,12 +94,14 @@ params = {
     'class_weight': [None, 'balanced']
 }
 
-model = CatBoostClassifier(random_state=random_seed, task_type=task_type)
+model = CatBoostClassifier(random_seed=random_seed,
+                           loss_function=loss_function,iterations=iterations,
+                           verbose=verbose, task_type=task_type)
 
 cv = GridSearchCV(
     estimator=model,
     param_grid=params,
-    cv=5,
+    cv=2,
     scoring='roc_auc',
     n_jobs=-1,
     verbose=verbose
@@ -114,10 +116,12 @@ os.environ["AWS_SECRET_ACCESS_KEY"] = os.getenv("S3_SECRET_KEY")
 mlflow.set_tracking_uri(f"http://{TRACKING_SERVER_HOST}:{TRACKING_SERVER_PORT}")
 mlflow.set_registry_uri(f"http://{TRACKING_SERVER_HOST}:{TRACKING_SERVER_PORT}")
 
-cv_results = clf.cv_results_
+cv_results = pd.DataFrame(clf.cv_results_)
 
-best_params = cv_results['params'][clf.best_index_]
-model_best = RandomForestClassifier(**best_params, random_state=random_seed)
+best_params = clf.best_params_
+model_best = CatBoostClassifier(**best_params, random_seed=random_seed,verbose=verbose,
+                                loss_function=loss_function,task_type=task_type,
+                                iterations=iterations)
 
 model_best.fit(X_train, y_train)
 
@@ -128,12 +132,12 @@ probas = model_best.predict_proba(X_test)[:, 1]
 metrics = {}
 
 tn, fp, fn, tp = confusion_matrix(y_test, prediction).ravel()
-err1, err2 = fp/(fp+tn), fn/(fn+tp)  # ошибки первого и второго рода
+_, err1, _, err2 = confusion_matrix(y_test, prediction, normalize='all').ravel()
 auc = roc_auc_score(y_test, probas)  # площадь под ROC-кривой
 precision = precision_score(y_test, prediction)  # точность
 recall = recall_score(y_test, prediction)  # полнота
 f1 = f1_score(y_test, prediction)  # F1-мера
-logloss = log_loss(y_test, probas)  # LogLoss
+logloss = log_loss(y_test, prediction)  # LogLoss
 
 # сохранение метрик в словарь
 metrics["err1"] = err1
@@ -145,33 +149,28 @@ metrics["f1"] = f1
 metrics["logloss"] = logloss
 
 # дополнительные метрики из результатов кросс-валидации
-metrics["mean_fit_time"] = cv_results['mean_fit_time'][clf.best_index_]  # среднее время обучения
-metrics["std_fit_time"] = cv_results['std_fit_time'][clf.best_index_]  # стандартное отклонение времени обучения
-metrics["mean_test_score"] = cv_results['mean_test_score'][clf.best_index_]  # средний результат на тесте
-metrics["std_test_score"] = cv_results['std_test_score'][clf.best_index_]  # стандартное отклонение результата на тесте
+metrics['mean_fit_time'] = cv_results['mean_fit_time'].mean()
+metrics['std_fit_time'] = cv_results['std_fit_time'].mean()
+metrics['std_test_score'] = cv_results['std_test_score'].mean()
+metrics['mean_test_score'] = cv_results['mean_test_score'].mean()
 metrics["best_score"] = clf.best_score_  # лучший результат кросс-валидации
 
 # настройки для логирования в MLFlow
-pip_requirements = "requirements.txt"
-signature = ModelSignature(
-    inputs=Schema([ColSpec("double", col) for col in features]),
-    outputs=Schema([ColSpec("integer", "target")])
-)
-input_example = X_train.head(1)
+pip_requirements = '../requirements.txt'
+signature = mlflow.models.infer_signature(X_test, prediction)
+input_example = X_test[:10]
 
-experiment = mlflow.get_experiment_by_name(EXPERIMENT_NAME)
-if experiment is None:
-    experiment_id = mlflow.create_experiment(EXPERIMENT_NAME)
-else:
-    experiment_id = experiment.experiment_id
+experiment_id = mlflow.get_experiment_by_name(EXPERIMENT_NAME).experiment_id
 
 with mlflow.start_run(run_name=RUN_NAME, experiment_id=experiment_id) as run:
-    mlflow.log_params({
-        "loss_function": loss_function,
-        "task_type": task_type,
-        "random_seed": random_seed,
-        "iterations": iterations
-    })
+    run_id = run.info.run_id
+    mlflow.log_params(best_params)
+    cv_info = mlflow.sklearn.log_model(cv, artifact_path='cv')
+    model_info = mlflow.catboost.log_model(cv, artifact_path='cv',
+    signature=signature,cb_model=model,artifact_path='models',
+    input_example=input_example,
+    registered_model_name=REGISTRY_MODEL_NAME,
+    pip_requirements=pip_requirements)
     mlflow.log_metrics(metrics)
     mlflow.log_artifact(pip_requirements)
     mlflow.log_model(model_best, "model", signature=signature, input_example=input_example)
