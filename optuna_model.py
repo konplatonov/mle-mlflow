@@ -32,7 +32,6 @@ from sklearn.impute import SimpleImputer
 
 from catboost import CatBoostClassifier
 
-
 from mlxtend.feature_selection import SequentialFeatureSelector as SFS
 
 import optuna
@@ -41,18 +40,15 @@ from optuna.integration.mlflow import MLflowCallback
 
 from statistics import median
 
+from mlflow.models.signature import infer_signature
+
 # ENV VARIABLES
 
 TABLE_NAME = 'users_churn'
 TRACKING_SERVER_HOST = "127.0.0.1"
 TRACKING_SERVER_PORT = 5000
 
-EXPERIMENT_NAME = "bayesian_search"
-RUN_NAME = "model_bayesian_search"
 REGISTRY_MODEL_NAME = 'model with bayesian search'
-H_ASSETS = "h_assets"
-
-MLFLOW_PARENT_RUN_ID = 'model_bayesian_search'
 
 os.environ["MLFLOW_S3_ENDPOINT_URL"] = os.getenv("MLFLOW_S3_ENDPOINT_URL")
 os.environ["AWS_ACCESS_KEY_ID"] = os.getenv("AWS_ACCESS_KEY_ID")
@@ -173,30 +169,8 @@ if mlflow.active_run() is not None:
 
 with mlflow.start_run(run_name=RUN_NAME, experiment_id=experiment_id) as run:
     run_id = run.info.run_id
-
-    mlflc = MLflowCallback(
-            tracking_uri=f"http://{TRACKING_SERVER_HOST}:{TRACKING_SERVER_PORT}",
-            metric_name='AUC',create_experiment=False,
-            mlflow_kwargs={'experiment_id': experiment_id, 'tags': {'mlflow.parentRunId': run_id}}
-    )
-
-    study = optuna.create_study(
-            storage=STUDY_DB_NAME,
-            study_name=STUDY_NAME,
-            direction="maximize",
-            sampler=optuna.samplers.TPESampler(),
-            load_if_exists=True
-    )
-
-    study.optimize(objective, n_trials=10, callbacks=[mlflc])
-
-    best_params = study.best_params
-
-    print(f"Number of finished trials: {len(study.trials)}")
-    print(f"Best params: {best_params}")
-
-    final_model = CatBoostClassifier(**best_params, loss_function="Logloss", task_type="CPU",
-                                     random_seed=0, iterations=300, verbose=False)
+    final_model = CatBoostClassifier(loss_function="Logloss", task_type="CPU",
+                                     random_seed=0, iterations=10, verbose=False)
     final_model.fit(X_train, y_train)
     signature = infer_signature(X_train, final_model.predict(X_train))
     input_example = X_train.head(10)
@@ -207,3 +181,24 @@ with mlflow.start_run(run_name=RUN_NAME, experiment_id=experiment_id) as run:
         signature=signature,
         input_example=input_example
     )
+
+mlflc = MLflowCallback(
+        tracking_uri=f"http://{TRACKING_SERVER_HOST}:{TRACKING_SERVER_PORT}",
+        metric_name='AUC',create_experiment=False,
+        mlflow_kwargs={'experiment_id': experiment_id, 'tags': {'mlflow.parentRunId': run_id}}
+)
+
+study = optuna.create_study(
+        storage=STUDY_DB_NAME,
+        study_name=STUDY_NAME,
+        direction="maximize",
+        sampler=optuna.samplers.TPESampler(),
+        load_if_exists=True
+)
+
+study.optimize(objective, n_trials=10, callbacks=[mlflc])
+
+best_params = study.best_params
+
+print(f"Number of finished trials: {len(study.trials)}")
+print(f"Best params: {best_params}")
